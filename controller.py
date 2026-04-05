@@ -26,13 +26,14 @@ class PIDController:
 
     def __init__(self, Kp: float, Ki: float, Kd: float,
                  thrust_min: float = 0.0, thrust_max: float = 500.0,
-                 dt: float = 0.01) -> None:
+                 dt: float = 0.01, gravity: float = 9.81) -> None:
         self.Kp = Kp
         self.Ki = Ki
         self.Kd = Kd
         self.thrust_min = thrust_min
         self.thrust_max = thrust_max
         self.dt = dt
+        self.gravity = gravity
 
         self._integral: float = 0.0
         self._prev_error: float = 0.0
@@ -73,7 +74,7 @@ class PIDController:
         self._prev_error = error
 
         # Gravity feed-forward so the rocket can hover at rest
-        gravity_ff = m * 9.81
+        gravity_ff = m * self.gravity
 
         u = gravity_ff + self.Kp * error + self.Ki * self._integral + self.Kd * derivative
         return float(np.clip(u, self.thrust_min, self.thrust_max))

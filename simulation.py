@@ -90,6 +90,7 @@ def run_simulation(
         thrust_min=rocket_cfg["thrust_min"],
         thrust_max=rocket_cfg["thrust_max"],
         dt=dt,
+        gravity=rocket_cfg["gravity"],
     )
 
     # Estimator
@@ -97,7 +98,9 @@ def run_simulation(
     Q = np.diag(Q_diag)
     R = est_cfg["R_meas"]
     P_init = np.diag(est_cfg["P_init"])
-    kf = KalmanFilter(dt=dt, Q=Q, R=R, P_init=P_init)
+    kf = KalmanFilter(dt=dt, Q=Q, R=R, P_init=P_init,
+                      gravity=rocket_cfg["gravity"],
+                      alpha=rocket_cfg["alpha"])
     kf.initialise(state)
 
     meas_std = noise_cfg["measurement_std"]

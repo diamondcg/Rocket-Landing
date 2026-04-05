@@ -26,10 +26,13 @@ class KalmanFilter:
     """
 
     def __init__(self, dt: float, Q: np.ndarray, R: float,
-                 P_init: np.ndarray) -> None:
+                 P_init: np.ndarray, gravity: float = 9.81,
+                 alpha: float = 0.0005) -> None:
         self.dt = dt
         self.Q = np.asarray(Q, dtype=float)
         self.R = float(R)
+        self.gravity = gravity
+        self.alpha = alpha
 
         # State transition matrix (z, v, mass) – mass is modelled as constant
         self.F = np.array([
@@ -57,8 +60,8 @@ class KalmanFilter:
             Thrust applied during the previous step [N].
         """
         m = max(self.x_hat[2], 1e-6)
-        g = 9.81
-        alpha = 0.0005
+        g = self.gravity
+        alpha = self.alpha
 
         # Non-linear prediction of state mean
         z = self.x_hat[0] + self.x_hat[1] * self.dt
