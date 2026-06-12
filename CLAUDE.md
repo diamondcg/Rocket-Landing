@@ -18,18 +18,27 @@ landing under thrust control. It models:
   single closed-loop run.
 - **Monte Carlo**: runs many randomized simulations to estimate landing
   success rate and error statistics.
+- **Visualization**: replays a recorded simulation log in an SDL2/OpenGL
+  window, rendering the rocket's altitude and thrust over time.
 
 ## Repository Layout
 
 ```
-config.yaml        # All tunable parameters (sim, rocket, controller, estimator, noise, MC)
+config.yaml        # All tunable parameters (sim, rocket, controller, estimator, noise, MC, visualization)
 dynamics.py         # RocketDynamics: Euler-integrated equations of motion
 controller.py       # PIDController: thrust command from state estimate
 estimator.py        # KalmanFilter: linear KF over [z, v, mass]
 simulation.py       # load_config() + run_simulation(): single closed-loop run
 monte_carlo.py      # run_monte_carlo(): batch of randomized runs + stats
-tests/test_gnc.py   # pytest suite covering all modules above
-requirements.txt    # numpy, pyyaml, pytest
+viz_transform.py    # pure altitude<->NDC/screen coordinate transforms
+viz_geometry.py     # pure vertex generation (rocket, flame, ground, axis ticks)
+viz_playback.py     # pure playback timing (PlaybackClock, index_for_time, ...)
+viz_window.py       # GLWindow: SDL2 window + OpenGL context (thin, not unit tested)
+viz_renderer.py     # SceneRenderer: OpenGL draw calls (thin, not unit tested)
+visualize.py        # entry point: runs a simulation and plays it back
+tests/test_gnc.py   # pytest suite covering dynamics/controller/estimator/simulation/MC
+tests/test_viz.py   # pytest suite covering viz_transform/viz_geometry/viz_playback/config
+requirements.txt    # numpy, pyyaml, pytest, PySDL2, PyOpenGL
 ```
 
 ## State & Conventions
@@ -54,7 +63,12 @@ requirements.txt    # numpy, pyyaml, pytest
 
 Single source of truth for all parameters, grouped by section:
 `simulation`, `rocket`, `controller` (`pid` and `lqr` sub-blocks),
-`estimator`, `noise`, `monte_carlo`.
+`estimator`, `noise`, `monte_carlo`, `visualization`.
+
+The `visualization` section configures `visualize.py`: window size/title,
+`fps`, `playback_speed`, `loop`, `view_padding_frac` (altitude view-bound
+padding), rocket size in NDC units, and a `colors` map (RGB triples in
+`[0, 1]`) for background/ground/rocket/flame.
 
 Note: `controller.type` includes an `lqr` option in the config schema,
 but `simulation.py` currently always instantiates `PIDController` using
@@ -81,11 +95,20 @@ python monte_carlo.py
 Prints success rate and error statistics over `config.yaml`'s
 `monte_carlo.n_runs` (default 1000) runs.
 
+### Run the visualization
+```bash
+python visualize.py
+```
+Runs a simulation (`seed=42`) and replays it in an SDL2/OpenGL window:
+rocket altitude over time, with an exhaust flame that scales with thrust.
+Close the window or press Esc to quit.
+
 ### Run tests
 ```bash
 pytest
 # or
 pytest tests/test_gnc.py -v
+pytest tests/test_viz.py -v
 ```
 
 ## Testing Conventions
@@ -105,6 +128,11 @@ pytest tests/test_gnc.py -v
   - KF covariance `P` stays positive semi-definite.
   - Default simulation lands within `t_max` and final `|z| <= 0.1` m.
   - Monte Carlo with 1000 runs achieves `success_rate >= 0.8`.
+- Tests for the visualization live in `tests/test_viz.py`, organized into
+  `TestVizTransform`, `TestVizGeometry`, `TestVizPlayback`, `TestVizConfig`.
+  Only `viz_transform.py`, `viz_geometry.py`, and `viz_playback.py` are
+  imported/tested — they have no SDL/OpenGL dependency. `viz_window.py` and
+  `viz_renderer.py` require a display/GL context and are not unit tested.
 
 ## Style Notes
 

@@ -39,3 +39,20 @@ monte_carlo:
   mass_init_mean: 20.0
   mass_init_std: 1.0
   success_position_threshold: 0.1  # [m]
+
+visualization:
+  window_width: 800     # window width [px]
+  window_height: 600    # window height [px]
+  window_title: "Rocket Landing"
+  fps: 60                # target render frame rate
+  playback_speed: 1.0    # 1.0 = real time, >1 = faster
+  loop: false            # restart playback when finished
+  view_padding_frac: 0.1 # fractional padding for altitude view bounds
+  rocket_width: 0.06     # rocket body width [NDC units]
+  rocket_height: 0.15    # rocket body height [NDC units]
+  colors:
+    background: [0.05, 0.05, 0.1]
+    ground: [0.4, 0.3, 0.2]
+    rocket: [0.9, 0.9, 0.9]
+    flame: [1.0, 0.5, 0.0]
+    axis: [0.6, 0.6, 0.6]
