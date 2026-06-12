@@ -50,9 +50,26 @@ visualization:
   view_padding_frac: 0.1 # fractional padding for altitude view bounds
   rocket_width: 0.06     # rocket body width [NDC units]
   rocket_height: 0.15    # rocket body height [NDC units]
+  hud:
+    enabled: true
+    font_path: "/home/sbryant/.fonts/Caskaydia Cove Nerd Font Complete Mono SemiLight.otf"
+    font_size_px: 18        # font size used to rasterize glyphs [px]
+    text_height: 0.045      # rendered text height [NDC]
+    margin: 0.04            # screen-edge margin [NDC]
+    arrow_max_force: 250.0  # force [N] that maps to arrow_max_length
+    arrow_max_length: 0.22  # arrow length at arrow_max_force [NDC]
+    arrow_shaft_width: 0.01 # arrow shaft line width [NDC]
+    fuel_bar_width: 0.04    # fuel gauge width [NDC]
+    fuel_bar_height: 0.5    # fuel gauge height [NDC]
   colors:
     background: [0.05, 0.05, 0.1]
     ground: [0.4, 0.3, 0.2]
     rocket: [0.9, 0.9, 0.9]
     flame: [1.0, 0.5, 0.0]
     axis: [0.6, 0.6, 0.6]
+    text: [0.9, 0.9, 0.9]
+    weight_arrow: [1.0, 0.3, 0.3]
+    thrust_arrow: [0.3, 0.6, 1.0]
+    net_arrow: [0.9, 0.9, 0.3]
+    fuel_bar_bg: [0.3, 0.3, 0.3]
+    fuel_bar_fill: [0.3, 0.9, 0.3]

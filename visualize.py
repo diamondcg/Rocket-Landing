@@ -9,6 +9,7 @@ from __future__ import annotations
 import time
 
 from simulation import load_config, run_simulation
+from viz_diagnostics import compute_diagnostics
 from viz_playback import PlaybackClock
 from viz_renderer import SceneRenderer
 from viz_transform import compute_view_bounds
@@ -32,7 +33,10 @@ def main(config_path: str = "config.yaml", seed: int | None = 42) -> None:
     dt = cfg["simulation"]["dt"]
 
     z = result["z"]
+    v = result["v"]
+    mass = result["mass"]
     thrust = result["thrust"]
+    time_log = result["time"]
     n_samples = len(z)
 
     z_min, z_max = compute_view_bounds(z, viz_cfg["view_padding_frac"])
@@ -41,6 +45,8 @@ def main(config_path: str = "config.yaml", seed: int | None = 42) -> None:
     renderer = SceneRenderer(
         colors=colors,
         rocket_size=(viz_cfg["rocket_width"], viz_cfg["rocket_height"]),
+        hud_cfg=viz_cfg["hud"],
+        screen_size=(viz_cfg["window_width"], viz_cfg["window_height"]),
     )
     clock = PlaybackClock(
         dt=dt,
@@ -69,6 +75,13 @@ def main(config_path: str = "config.yaml", seed: int | None = 42) -> None:
             renderer.draw_ground(z_min, z_max)
             renderer.draw_rocket(z[index], thrust[index], thrust_max,
                                   z_min, z_max)
+            if viz_cfg["hud"]["enabled"]:
+                diag = compute_diagnostics(
+                    z[index], v[index], mass[index], thrust[index],
+                    time_log[index], rocket_cfg["gravity"],
+                    rocket_cfg["mass_dry"], rocket_cfg["mass_init"],
+                    thrust_max)
+                renderer.draw_hud(diag)
             window.swap()
 
             if clock.finished:

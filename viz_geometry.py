@@ -108,6 +108,99 @@ def ground_line_vertices(y_ndc: float, x_extent: float = 1.0) -> np.ndarray:
     ])
 
 
+def arrow_vertices(origin_x: float, origin_y: float, magnitude: float,
+                    max_magnitude: float, max_length: float, direction: int,
+                    shaft_width: float) -> tuple[np.ndarray, np.ndarray]:
+    """Generate NDC vertices for a vertical force arrow.
+
+    The arrow's shaft starts at ``(origin_x, origin_y)`` and extends
+    vertically by an amount proportional to ``magnitude``, capped at
+    ``max_length``.
+
+    Parameters
+    ----------
+    origin_x, origin_y:
+        Arrow base position, in NDC.
+    magnitude:
+        Force magnitude (assumed non-negative) [N].
+    max_magnitude:
+        Magnitude at which the arrow reaches ``max_length`` [N].
+    max_length:
+        Arrow length at ``magnitude >= max_magnitude``, in NDC units.
+    direction:
+        ``+1`` to draw the arrow pointing up, ``-1`` to draw it pointing
+        down.
+    shaft_width:
+        Used to size the arrowhead, in NDC units.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        ``(shaft, head)``. ``shaft`` is a shape ``(2, 2)`` array of line
+        endpoints for ``GL_LINES``. ``head`` is a shape ``(3, 2)`` array of
+        triangle vertices for ``GL_TRIANGLE_FAN``/``GL_LINE_LOOP``.
+    """
+    frac = max(0.0, min(magnitude / max_magnitude, 1.0))
+    length = frac * max_length
+    tip_y = origin_y + direction * length
+
+    shaft = np.array([
+        [origin_x, origin_y],
+        [origin_x, tip_y],
+    ])
+
+    head_size = shaft_width * 3.0
+    base_y = tip_y - direction * head_size
+    head = np.array([
+        [origin_x, tip_y],
+        [origin_x - head_size, base_y],
+        [origin_x + head_size, base_y],
+    ])
+
+    return shaft, head
+
+
+def progress_bar_vertices(x: float, y: float, width: float, height: float,
+                           frac: float) -> tuple[np.ndarray, np.ndarray]:
+    """Generate NDC vertices for a vertical progress-bar gauge.
+
+    Parameters
+    ----------
+    x, y:
+        Bottom-left corner of the bar, in NDC.
+    width, height:
+        Full size of the bar, in NDC units.
+    frac:
+        Fraction of the bar to fill, from the bottom. Clamped to
+        ``[0, 1]``.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray]
+        ``(outline, fill)``, each a shape ``(4, 2)`` array of rectangle
+        corners ordered for ``GL_LINE_LOOP``/``GL_TRIANGLE_FAN``. ``outline``
+        spans the full bar; ``fill`` spans the filled portion.
+    """
+    frac = max(0.0, min(frac, 1.0))
+
+    outline = np.array([
+        [x, y],
+        [x + width, y],
+        [x + width, y + height],
+        [x, y + height],
+    ])
+
+    fill_height = height * frac
+    fill = np.array([
+        [x, y],
+        [x + width, y],
+        [x + width, y + fill_height],
+        [x, y + fill_height],
+    ])
+
+    return outline, fill
+
+
 def axis_tick_vertices(z_min: float, z_max: float, n_ticks: int,
                        x_ndc: float) -> tuple[np.ndarray, list[float]]:
     """Generate tick mark positions along the altitude axis.
