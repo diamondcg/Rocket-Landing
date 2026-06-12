@@ -116,6 +116,64 @@ def segmented_rocket_body_vertices(
     return forward, mid, aft
 
 
+def engine_nozzle_vertices(center_x: float, body_bottom_y: float,
+                            body_width: float, engine_height: float,
+                            n_engines: int = 2, gap_frac: float = 0.15
+                            ) -> list[np.ndarray]:
+    """Generate NDC vertices for tapered engine-bell polygons.
+
+    The engines are evenly spaced trapezoids hanging below the aft
+    segment's bottom edge, each wider at the top (flush with the fuselage)
+    and narrower at the bottom (nozzle exit), giving a rocket-engine
+    silhouette.
+
+    Parameters
+    ----------
+    center_x:
+        X coordinate of the rocket center, in NDC.
+    body_bottom_y:
+        Y coordinate of the aft segment's bottom edge, in NDC. The engines
+        hang below this.
+    body_width:
+        Total width of the rocket body, in NDC units. The engines are
+        spaced evenly within this width.
+    engine_height:
+        Height of each engine nozzle, in NDC units.
+    n_engines:
+        Number of engine nozzles to generate.
+    gap_frac:
+        Fraction of each engine's slot width left as a gap between/around
+        nozzles.
+
+    Returns
+    -------
+    list[np.ndarray]
+        ``n_engines`` shape ``(4, 2)`` arrays, each a trapezoid (top-left,
+        top-right, bottom-right, bottom-left), ordered for
+        ``GL_TRIANGLE_FAN``/``GL_LINE_LOOP``.
+    """
+    slot_width = body_width / n_engines
+    top_width = slot_width * (1.0 - gap_frac)
+    bottom_width = top_width * 0.6
+    bottom_y = body_bottom_y - engine_height
+
+    left_edge = center_x - body_width / 2.0
+
+    nozzles = []
+    for i in range(n_engines):
+        slot_center = left_edge + slot_width * (i + 0.5)
+        top_half = top_width / 2.0
+        bottom_half = bottom_width / 2.0
+        nozzles.append(np.array([
+            [slot_center - top_half, body_bottom_y],
+            [slot_center + top_half, body_bottom_y],
+            [slot_center + bottom_half, bottom_y],
+            [slot_center - bottom_half, bottom_y],
+        ]))
+
+    return nozzles
+
+
 def flame_vertices(center_x: float, base_y_ndc: float, thrust_frac: float,
                     width: float, max_height: float) -> np.ndarray:
     """Generate NDC vertices for an exhaust-flame triangle.

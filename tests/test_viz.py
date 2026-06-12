@@ -27,6 +27,7 @@ from viz_transform import (
 from viz_geometry import (
     arrow_vertices,
     axis_tick_vertices,
+    engine_nozzle_vertices,
     flame_vertices,
     ground_line_vertices,
     progress_bar_vertices,
@@ -157,6 +158,34 @@ class TestVizGeometry:
         forward, mid, aft = segmented_rocket_body_vertices(0.5, 0.5, 0.1, 0.2)
         combined = np.vstack([forward, mid, aft])
         assert np.isclose(combined[:, 0].mean(), 0.5, atol=0.05)
+
+    def test_engine_nozzle_vertices_shape(self):
+        nozzles = engine_nozzle_vertices(0.0, 0.0, 0.1, 0.04, n_engines=2)
+        assert len(nozzles) == 2
+        for nozzle in nozzles:
+            assert nozzle.shape == (4, 2)
+
+    def test_engine_nozzle_vertices_below_body(self):
+        body_bottom_y = 0.0
+        engine_height = 0.04
+        nozzles = engine_nozzle_vertices(0.0, body_bottom_y, 0.1, engine_height)
+        for nozzle in nozzles:
+            assert nozzle[:, 1].max() <= body_bottom_y + 1e-9
+            assert nozzle[:, 1].min() >= body_bottom_y - engine_height - 1e-9
+
+    def test_engine_nozzle_vertices_within_body_width(self):
+        body_width = 0.1
+        nozzles = engine_nozzle_vertices(0.0, 0.0, body_width, 0.04)
+        for nozzle in nozzles:
+            assert nozzle[:, 0].min() >= -body_width / 2.0 - 1e-9
+            assert nozzle[:, 0].max() <= body_width / 2.0 + 1e-9
+
+    def test_engine_nozzle_vertices_taper(self):
+        nozzles = engine_nozzle_vertices(0.0, 0.0, 0.1, 0.04)
+        for nozzle in nozzles:
+            top_width = nozzle[1, 0] - nozzle[0, 0]
+            bottom_width = nozzle[2, 0] - nozzle[3, 0]
+            assert bottom_width < top_width
 
     def test_flame_vertices_shape(self):
         verts = flame_vertices(0.0, 0.0, thrust_frac=0.5, width=0.05,
@@ -583,7 +612,8 @@ class TestVizConfig:
         viz = cfg["visualization"]
         for key in ("window_width", "window_height", "window_title", "fps",
                     "playback_speed", "loop", "view_padding_frac",
-                    "rocket_width", "rocket_height", "colors", "hud"):
+                    "rocket_width", "rocket_height", "engine_height",
+                    "colors", "hud"):
             assert key in viz
 
     def test_visualization_colors_are_rgb_triples(self):
@@ -616,7 +646,8 @@ class TestVizConfig:
         cfg = _default_cfg()
         colors = cfg["visualization"]["colors"]
         for name in ("text", "weight_arrow", "thrust_arrow", "net_arrow",
-                      "fuel_bar_bg", "fuel_bar_fill"):
+                      "fuel_bar_bg", "fuel_bar_fill", "rocket_outline",
+                      "engine"):
             assert name in colors
             rgb = colors[name]
             assert len(rgb) == 3

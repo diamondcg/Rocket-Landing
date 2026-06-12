@@ -31,25 +31,25 @@ noise:
   measurement_std: 1.0  # position measurement std [m]
 
 thermal:
-  t_min: 250.0   # [K] cold end of the segment color gradient
-  t_max: 900.0   # [K] hot end of the segment color gradient
+  t_min: 230.0   # [K] cold end of the segment color gradient
+  t_max: 355.0   # [K] hot end of the segment color gradient
   initial_temps:
     forward: 300.0  # [K]
     mid: 300.0      # [K]
     aft: 300.0      # [K]
   segment_params:
     forward:
-      aero_coeff: 0.08     # [K/s per (m/s)^2] leading edge -- highest aero heating
+      aero_coeff: 0.12     # [K/s per (m/s)^2] leading edge -- highest aero heating
       engine_coeff: 0.0    # [K/s] no direct engine heating
-      conv_coeff: 0.5      # [1/s] convective cooling rate toward ambient
+      conv_coeff: 0.05     # [1/s] convective cooling rate toward ambient -- slow, gives thermal inertia
     mid:
-      aero_coeff: 0.03     # [K/s per (m/s)^2]
+      aero_coeff: 0.05     # [K/s per (m/s)^2]
       engine_coeff: 0.0    # [K/s]
-      conv_coeff: 0.6      # [1/s]
+      conv_coeff: 0.06     # [1/s]
     aft:
       aero_coeff: 0.02     # [K/s per (m/s)^2] least aero exposure
-      engine_coeff: 0.15   # [K/s per thrust fraction] engine heating
-      conv_coeff: 0.4      # [1/s] slower cooling near engine bay
+      engine_coeff: 1.5    # [K/s per thrust fraction] engine bay heats noticeably under sustained thrust
+      conv_coeff: 0.04     # [1/s] slowest cooling near engine bay
 
 environment:
   ambient_temp_init: 288.0  # [K] (~15C)
@@ -81,6 +81,7 @@ visualization:
   view_padding_frac: 0.1 # fractional padding for altitude view bounds
   rocket_width: 0.06     # rocket body width [NDC units]
   rocket_height: 0.15    # rocket body height [NDC units]
+  engine_height: 0.04    # engine nozzle height below the aft segment [NDC units]
   hud:
     enabled: true
     font_path: "/home/sbryant/.fonts/Caskaydia Cove Nerd Font Complete Mono SemiLight.otf"
@@ -108,3 +109,5 @@ visualization:
     net_arrow: [0.9, 0.9, 0.3]
     fuel_bar_bg: [0.3, 0.3, 0.3]
     fuel_bar_fill: [0.3, 0.9, 0.3]
+    rocket_outline: [0.85, 0.85, 0.85]
+    engine: [0.3, 0.3, 0.35]

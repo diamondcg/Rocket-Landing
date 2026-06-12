@@ -25,6 +25,7 @@ from OpenGL.GL import (
 from viz_colormap import temperature_to_color
 from viz_geometry import (
     arrow_vertices,
+    engine_nozzle_vertices,
     flame_vertices,
     ground_line_vertices,
     progress_bar_vertices,
@@ -58,14 +59,25 @@ class SceneRenderer:
     """
 
     def __init__(self, colors: dict[str, tuple[float, float, float]],
-                 rocket_size: tuple[float, float], hud_cfg: dict,
-                 screen_size: tuple[int, int]) -> None:
+                 rocket_size: tuple[float, float], engine_height: float,
+                 hud_cfg: dict, screen_size: tuple[int, int]) -> None:
         self.colors = colors
         self.rocket_width, self.rocket_height = rocket_size
+        self.engine_height = engine_height
         self.hud_cfg = hud_cfg
         self.screen_width, self.screen_height = screen_size
         self.text_renderer = TextRenderer(hud_cfg["font_path"],
                                            hud_cfg["font_size_px"])
+
+    def _body_center_y(self, base_y: float) -> float:
+        """Convert the altitude-mapped base y to the body's center y.
+
+        ``base_y`` represents the rocket's "feet" (bottom of the engine
+        nozzles), consistent with landing being detected at ``z <= 0``. The
+        body is drawn above that, offset by its own half-height plus the
+        engine height.
+        """
+        return base_y + self.rocket_height / 2.0 + self.engine_height
 
     def clear(self) -> None:
         """Clear the frame with the configured background color."""
@@ -113,12 +125,17 @@ class SceneRenderer:
             ``config.yaml``'s ``thermal`` section, used for the
             ``t_min``/``t_max`` color-gradient range.
         """
-        center_y = altitude_to_ndc_y(z, z_min, z_max)
+        base_y = altitude_to_ndc_y(z, z_min, z_max)
+        center_y = self._body_center_y(base_y)
         forward, mid, aft = segmented_rocket_body_vertices(
             ROCKET_CENTER_X, center_y, self.rocket_width, self.rocket_height)
+        body_bottom = center_y - self.rocket_height / 2.0
+        nozzles = engine_nozzle_vertices(
+            ROCKET_CENTER_X, body_bottom, self.rocket_width,
+            self.engine_height)
 
         thrust_frac = thrust / thrust_max if thrust_max > 0 else 0.0
-        flame_base_y = center_y - self.rocket_height / 2.0
+        flame_base_y = body_bottom - self.engine_height
         flame = flame_vertices(ROCKET_CENTER_X, flame_base_y, thrust_frac,
                                 self.rocket_width, self.rocket_height)
 
@@ -129,12 +146,34 @@ class SceneRenderer:
             glVertex2f(x, y)
         glEnd()
 
+        outline = self.colors["rocket_outline"]
+
+        engine_color = self.colors["engine"]
+        for poly in nozzles:
+            glColor3f(*engine_color)
+            glBegin(GL_TRIANGLE_FAN)
+            for x, y in poly:
+                glVertex2f(x, y)
+            glEnd()
+
+            glColor3f(*outline)
+            glBegin(GL_LINE_LOOP)
+            for x, y in poly:
+                glVertex2f(x, y)
+            glEnd()
+
         t_min, t_max = thermal_cfg["t_min"], thermal_cfg["t_max"]
         cold, hot = self.colors["temp_cold"], self.colors["temp_hot"]
         for poly, seg_name in ((forward, "forward"), (mid, "mid"), (aft, "aft")):
             r, g, b = temperature_to_color(temps[seg_name], t_min, t_max, cold, hot)
             glColor3f(r, g, b)
             glBegin(GL_TRIANGLE_FAN)
+            for x, y in poly:
+                glVertex2f(x, y)
+            glEnd()
+
+            glColor3f(*outline)
+            glBegin(GL_LINE_LOOP)
             for x, y in poly:
                 glVertex2f(x, y)
             glEnd()
@@ -168,12 +207,13 @@ class SceneRenderer:
             glVertex2f(x, y)
         glEnd()
 
-    def _draw_segment_labels(self, center_y: float, temps: dict[str, float],
+    def _draw_segment_labels(self, base_y: float, temps: dict[str, float],
                               thermal_cfg: dict) -> None:
         """Draw small "FWD/MID/AFT NNNK" labels beside the rocket body."""
         hud = self.hud_cfg
         label_x = ROCKET_CENTER_X + self.rocket_width / 2.0 + hud["segment_label_offset_x"]
 
+        center_y = self._body_center_y(base_y)
         half_h = self.rocket_height / 2.0
         nose_h = min(self.rocket_width, self.rocket_height)
         shoulder_y = center_y + half_h - nose_h
@@ -215,7 +255,7 @@ class SceneRenderer:
         self._draw_text(f"TEMP: {temp_str}", x0, y0)
         self._draw_text(f"HUM:  {hum_str}", x0, y0 - line_step)
 
-    def draw_hud(self, diag: dict, center_y: float, temps: dict[str, float],
+    def draw_hud(self, diag: dict, base_y: float, temps: dict[str, float],
                   thermal_cfg: dict, env_state: EnvControlState) -> None:
         """Draw the diagnostics overlay (HUD).
 
@@ -224,8 +264,8 @@ class SceneRenderer:
         diag:
             Diagnostic values as returned by
             :func:`viz_diagnostics.compute_diagnostics`.
-        center_y:
-            Rocket body's vertical center in NDC, as returned by
+        base_y:
+            Rocket's altitude-mapped base ("feet") y in NDC, as returned by
             :func:`viz_transform.altitude_to_ndc_y` for the current
             altitude -- used to position the segment temperature labels.
         temps:
@@ -307,5 +347,5 @@ class SceneRenderer:
         self._draw_text("FUEL", bar_x - 0.01, bar_y + bar_h + line_step)
 
         # --- Segment temperature labels and environment panel ------------
-        self._draw_segment_labels(center_y, temps, thermal_cfg)
+        self._draw_segment_labels(base_y, temps, thermal_cfg)
         self._draw_env_panel(env_state)

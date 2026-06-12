@@ -49,6 +49,7 @@ def main(config_path: str = "config.yaml", seed: int | None = 42) -> None:
     renderer = SceneRenderer(
         colors=colors,
         rocket_size=(viz_cfg["rocket_width"], viz_cfg["rocket_height"]),
+        engine_height=viz_cfg["engine_height"],
         hud_cfg=viz_cfg["hud"],
         screen_size=(viz_cfg["window_width"], viz_cfg["window_height"]),
     )
@@ -111,8 +112,8 @@ def main(config_path: str = "config.yaml", seed: int | None = 42) -> None:
                     time_log[index], rocket_cfg["gravity"],
                     rocket_cfg["mass_dry"], rocket_cfg["mass_init"],
                     thrust_max)
-                center_y = altitude_to_ndc_y(z[index], z_min, z_max)
-                renderer.draw_hud(diag, center_y, temps, thermal_cfg, env_state)
+                base_y = altitude_to_ndc_y(z[index], z_min, z_max)
+                renderer.draw_hud(diag, base_y, temps, thermal_cfg, env_state)
             window.swap()
 
             if clock.finished:
