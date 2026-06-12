@@ -1,0 +1,41 @@
+simulation:
+  dt: 0.01          # time step [s]
+  t_max: 30.0       # max simulation time [s]
+
+rocket:
+  gravity: 9.81     # gravitational acceleration [m/s^2]
+  alpha: 0.0005     # fuel consumption coefficient [kg/(N·s)]
+  mass_dry: 10.0    # dry mass [kg]
+  mass_init: 20.0   # initial mass (dry + fuel) [kg]
+  z_init: 100.0     # initial altitude [m]
+  v_init: -10.0     # initial velocity [m/s] (negative = downward)
+  thrust_min: 0.0   # minimum thrust [N]
+  thrust_max: 500.0 # maximum thrust [N]
+
+controller:
+  type: pid         # 'pid' or 'lqr'
+  pid:
+    Kp: 2.0
+    Ki: 0.5
+    Kd: 100.0
+  lqr:
+    Q: [100.0, 1.0] # state cost weights [z, v]
+    R: 0.01         # control cost weight
+
+estimator:
+  Q_proc: [0.01, 0.01, 0.0]  # process noise covariance diagonal [z, v, mass]
+  R_meas: 1.0                 # measurement noise variance [m^2]
+  P_init: [10.0, 1.0, 0.1]   # initial state error covariance diagonal
+
+noise:
+  measurement_std: 1.0  # position measurement std [m]
+
+monte_carlo:
+  n_runs: 1000
+  z_init_mean: 100.0
+  z_init_std: 5.0
+  v_init_mean: -10.0
+  v_init_std: 1.0
+  mass_init_mean: 20.0
+  mass_init_std: 1.0
+  success_position_threshold: 0.1  # [m]
