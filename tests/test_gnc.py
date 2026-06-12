@@ -15,6 +15,7 @@ from controller import PIDController
 from estimator import KalmanFilter
 from simulation import load_config, run_simulation
 from monte_carlo import run_monte_carlo
+from thermal import ThermalModel
 
 
 # ---------------------------------------------------------------------------
@@ -248,3 +249,106 @@ class TestMonteCarlo:
         assert results["success_rate"] >= 0.8, (
             f"Monte Carlo success rate {results['success_rate']*100:.1f}% < 80%"
         )
+
+
+# ===========================================================================
+# thermal.py
+# ===========================================================================
+
+class TestThermalModel:
+    def _model(self, cfg=None):
+        cfg = cfg or _default_cfg()
+        thermal_cfg = cfg["thermal"]
+        return ThermalModel(thermal_cfg["segment_params"],
+                             thermal_cfg["initial_temps"])
+
+    def test_initial_temps_match_config(self):
+        cfg = _default_cfg()
+        model = self._model(cfg)
+        assert model.temps == cfg["thermal"]["initial_temps"]
+
+    def test_reset_restores_initial_temps(self):
+        cfg = _default_cfg()
+        model = self._model(cfg)
+        for _ in range(10):
+            model.step(v=-50.0, thrust=500.0, thrust_max=500.0,
+                       ambient_temp=288.0, humidity=50.0, dt=0.1)
+        model.reset()
+        assert model.temps == cfg["thermal"]["initial_temps"]
+
+    def test_step_returns_copy_not_reference(self):
+        model = self._model()
+        result = model.step(v=-10.0, thrust=0.0, thrust_max=500.0,
+                             ambient_temp=288.0, humidity=50.0, dt=0.1)
+        result["forward"] = -1.0
+        assert model.temps["forward"] != -1.0
+
+    def test_aero_heating_increases_with_velocity(self):
+        cfg = _default_cfg()
+        model_slow = self._model(cfg)
+        model_fast = self._model(cfg)
+        ambient = cfg["thermal"]["initial_temps"]["forward"]
+
+        slow = model_slow.step(v=-5.0, thrust=0.0, thrust_max=500.0,
+                                ambient_temp=ambient, humidity=50.0, dt=0.1)
+        fast = model_fast.step(v=-50.0, thrust=0.0, thrust_max=500.0,
+                                ambient_temp=ambient, humidity=50.0, dt=0.1)
+        assert fast["forward"] > slow["forward"]
+
+    def test_forward_has_highest_aero_coefficient(self):
+        cfg = _default_cfg()
+        params = cfg["thermal"]["segment_params"]
+        assert params["forward"]["aero_coeff"] > params["mid"]["aero_coeff"]
+        assert params["forward"]["aero_coeff"] > params["aft"]["aero_coeff"]
+
+    def test_aft_heats_with_thrust(self):
+        cfg = _default_cfg()
+        model = self._model(cfg)
+        ambient = cfg["thermal"]["initial_temps"]["aft"]
+
+        result = model.step(v=0.0, thrust=500.0, thrust_max=500.0,
+                             ambient_temp=ambient, humidity=50.0, dt=0.1)
+        assert result["aft"] > ambient
+        # forward/mid have engine_coeff == 0 and v == 0 -> no heating
+        assert result["forward"] <= ambient
+        assert result["mid"] <= ambient
+
+    def test_cooling_toward_ambient(self):
+        cfg = _default_cfg()
+        params = cfg["thermal"]["segment_params"]
+        initial_temps = {seg: 500.0 for seg in cfg["thermal"]["initial_temps"]}
+        model = ThermalModel(params, initial_temps)
+        ambient = 288.0
+
+        prev = dict(model.temps)
+        for _ in range(50):
+            result = model.step(v=0.0, thrust=0.0, thrust_max=500.0,
+                                 ambient_temp=ambient, humidity=50.0, dt=0.05)
+            for seg in result:
+                assert result[seg] < prev[seg]
+                assert result[seg] > ambient
+            prev = result
+
+    def test_humidity_increases_cooling_rate(self):
+        cfg = _default_cfg()
+        params = cfg["thermal"]["segment_params"]
+        initial_temps = {seg: 500.0 for seg in cfg["thermal"]["initial_temps"]}
+        ambient = 288.0
+
+        model_dry = ThermalModel(params, dict(initial_temps))
+        model_humid = ThermalModel(params, dict(initial_temps))
+        for _ in range(20):
+            dry = model_dry.step(v=0.0, thrust=0.0, thrust_max=500.0,
+                                  ambient_temp=ambient, humidity=0.0, dt=0.05)
+            humid = model_humid.step(v=0.0, thrust=0.0, thrust_max=500.0,
+                                      ambient_temp=ambient, humidity=100.0, dt=0.05)
+        for seg in dry:
+            assert humid[seg] < dry[seg]
+
+    def test_step_with_zero_dt_no_change(self):
+        cfg = _default_cfg()
+        model = self._model(cfg)
+        before = dict(model.temps)
+        after = model.step(v=-50.0, thrust=500.0, thrust_max=500.0,
+                            ambient_temp=200.0, humidity=50.0, dt=0.0)
+        assert after == before

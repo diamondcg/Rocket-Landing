@@ -22,13 +22,15 @@ from OpenGL.GL import (
     glVertex2f,
 )
 
+from viz_colormap import temperature_to_color
 from viz_geometry import (
     arrow_vertices,
     flame_vertices,
     ground_line_vertices,
     progress_bar_vertices,
-    rocket_body_vertices,
+    segmented_rocket_body_vertices,
 )
+from viz_input import EnvControlState
 from viz_text import TextRenderer
 from viz_transform import altitude_to_ndc_y
 
@@ -43,9 +45,10 @@ class SceneRenderer:
     ----------
     colors:
         Mapping of element name (``"background"``, ``"ground"``,
-        ``"rocket"``, ``"flame"``, ``"text"``, ``"weight_arrow"``,
-        ``"thrust_arrow"``, ``"net_arrow"``, ``"fuel_bar_bg"``,
-        ``"fuel_bar_fill"``) to ``(r, g, b)`` tuples in ``[0, 1]``.
+        ``"flame"``, ``"temp_cold"``, ``"temp_hot"``, ``"text"``,
+        ``"weight_arrow"``, ``"thrust_arrow"``, ``"net_arrow"``,
+        ``"fuel_bar_bg"``, ``"fuel_bar_fill"``) to ``(r, g, b)`` tuples in
+        ``[0, 1]``.
     rocket_size:
         ``(width, height)`` of the rocket body, in NDC units.
     hud_cfg:
@@ -89,8 +92,9 @@ class SceneRenderer:
         glEnd()
 
     def draw_rocket(self, z: float, thrust: float, thrust_max: float,
-                    z_min: float, z_max: float) -> None:
-        """Draw the rocket body and its exhaust flame.
+                    z_min: float, z_max: float, temps: dict[str, float],
+                    thermal_cfg: dict) -> None:
+        """Draw the segmented rocket body and its exhaust flame.
 
         Parameters
         ----------
@@ -102,10 +106,16 @@ class SceneRenderer:
             Maximum thrust [N], used to normalize the flame length.
         z_min, z_max:
             Altitude view bounds [m].
+        temps:
+            Per-segment temperatures [K], keyed by ``"forward"``, ``"mid"``,
+            ``"aft"`` (see :class:`thermal.ThermalModel`).
+        thermal_cfg:
+            ``config.yaml``'s ``thermal`` section, used for the
+            ``t_min``/``t_max`` color-gradient range.
         """
         center_y = altitude_to_ndc_y(z, z_min, z_max)
-        body = rocket_body_vertices(ROCKET_CENTER_X, center_y,
-                                     self.rocket_width, self.rocket_height)
+        forward, mid, aft = segmented_rocket_body_vertices(
+            ROCKET_CENTER_X, center_y, self.rocket_width, self.rocket_height)
 
         thrust_frac = thrust / thrust_max if thrust_max > 0 else 0.0
         flame_base_y = center_y - self.rocket_height / 2.0
@@ -119,12 +129,15 @@ class SceneRenderer:
             glVertex2f(x, y)
         glEnd()
 
-        r, g, b = self.colors["rocket"]
-        glColor3f(r, g, b)
-        glBegin(GL_TRIANGLE_FAN)
-        for x, y in body:
-            glVertex2f(x, y)
-        glEnd()
+        t_min, t_max = thermal_cfg["t_min"], thermal_cfg["t_max"]
+        cold, hot = self.colors["temp_cold"], self.colors["temp_hot"]
+        for poly, seg_name in ((forward, "forward"), (mid, "mid"), (aft, "aft")):
+            r, g, b = temperature_to_color(temps[seg_name], t_min, t_max, cold, hot)
+            glColor3f(r, g, b)
+            glBegin(GL_TRIANGLE_FAN)
+            for x, y in poly:
+                glVertex2f(x, y)
+            glEnd()
 
     def _draw_text(self, text: str, x_ndc: float, y_ndc: float) -> None:
         """Draw a HUD text string at the given top-left NDC position."""
@@ -155,7 +168,55 @@ class SceneRenderer:
             glVertex2f(x, y)
         glEnd()
 
-    def draw_hud(self, diag: dict) -> None:
+    def _draw_segment_labels(self, center_y: float, temps: dict[str, float],
+                              thermal_cfg: dict) -> None:
+        """Draw small "FWD/MID/AFT NNNK" labels beside the rocket body."""
+        hud = self.hud_cfg
+        label_x = ROCKET_CENTER_X + self.rocket_width / 2.0 + hud["segment_label_offset_x"]
+
+        half_h = self.rocket_height / 2.0
+        nose_h = min(self.rocket_width, self.rocket_height)
+        shoulder_y = center_y + half_h - nose_h
+        body_bottom = center_y - half_h
+        seg_h = max(shoulder_y - body_bottom, 1e-6) / 3.0
+
+        positions = {
+            "aft": body_bottom + seg_h * 0.5,
+            "mid": body_bottom + seg_h * 1.5,
+            "forward": body_bottom + seg_h * 2.5,
+        }
+        labels = {"forward": "FWD", "mid": "MID", "aft": "AFT"}
+
+        t_min, t_max = thermal_cfg["t_min"], thermal_cfg["t_max"]
+        cold, hot = self.colors["temp_cold"], self.colors["temp_hot"]
+        text_h = hud["segment_label_text_height"]
+        for seg, y in positions.items():
+            color = temperature_to_color(temps[seg], t_min, t_max, cold, hot)
+            self.text_renderer.draw_text(
+                f"{labels[seg]} {temps[seg]:.0f}K", label_x, y, text_h,
+                color, self.screen_width, self.screen_height)
+
+    def _draw_env_panel(self, env_state: EnvControlState) -> None:
+        """Draw the top-right ambient temperature/humidity readout."""
+        hud = self.hud_cfg
+        margin = hud["margin"]
+        text_h = hud["text_height"]
+        line_step = text_h * 1.4
+        x0 = 1.0 - margin - hud["env_panel_width"]
+        y0 = 1.0 - margin
+
+        temp_str = f"{env_state.ambient_temp:.0f}K"
+        hum_str = f"{env_state.humidity:.0f}%"
+        if env_state.mode == "temp":
+            temp_str = f"[{env_state.buffer or '_'}]"
+        if env_state.mode == "humidity":
+            hum_str = f"[{env_state.buffer or '_'}]"
+
+        self._draw_text(f"TEMP: {temp_str}", x0, y0)
+        self._draw_text(f"HUM:  {hum_str}", x0, y0 - line_step)
+
+    def draw_hud(self, diag: dict, center_y: float, temps: dict[str, float],
+                  thermal_cfg: dict, env_state: EnvControlState) -> None:
         """Draw the diagnostics overlay (HUD).
 
         Parameters
@@ -163,6 +224,18 @@ class SceneRenderer:
         diag:
             Diagnostic values as returned by
             :func:`viz_diagnostics.compute_diagnostics`.
+        center_y:
+            Rocket body's vertical center in NDC, as returned by
+            :func:`viz_transform.altitude_to_ndc_y` for the current
+            altitude -- used to position the segment temperature labels.
+        temps:
+            Per-segment temperatures [K], keyed by ``"forward"``, ``"mid"``,
+            ``"aft"``.
+        thermal_cfg:
+            ``config.yaml``'s ``thermal`` section, used for the
+            ``t_min``/``t_max`` color-gradient range.
+        env_state:
+            Live ambient temperature/humidity control state.
         """
         hud = self.hud_cfg
         margin = hud["margin"]
@@ -232,3 +305,7 @@ class SceneRenderer:
         self._draw_text(f"{diag['fuel_frac'] * 100:.0f}%", bar_x - 0.01,
                         bar_y + bar_h + line_step * 2)
         self._draw_text("FUEL", bar_x - 0.01, bar_y + bar_h + line_step)
+
+        # --- Segment temperature labels and environment panel ------------
+        self._draw_segment_labels(center_y, temps, thermal_cfg)
+        self._draw_env_panel(env_state)

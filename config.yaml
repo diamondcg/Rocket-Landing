@@ -30,6 +30,37 @@ estimator:
 noise:
   measurement_std: 1.0  # position measurement std [m]
 
+thermal:
+  t_min: 250.0   # [K] cold end of the segment color gradient
+  t_max: 900.0   # [K] hot end of the segment color gradient
+  initial_temps:
+    forward: 300.0  # [K]
+    mid: 300.0      # [K]
+    aft: 300.0      # [K]
+  segment_params:
+    forward:
+      aero_coeff: 0.08     # [K/s per (m/s)^2] leading edge -- highest aero heating
+      engine_coeff: 0.0    # [K/s] no direct engine heating
+      conv_coeff: 0.5      # [1/s] convective cooling rate toward ambient
+    mid:
+      aero_coeff: 0.03     # [K/s per (m/s)^2]
+      engine_coeff: 0.0    # [K/s]
+      conv_coeff: 0.6      # [1/s]
+    aft:
+      aero_coeff: 0.02     # [K/s per (m/s)^2] least aero exposure
+      engine_coeff: 0.15   # [K/s per thrust fraction] engine heating
+      conv_coeff: 0.4      # [1/s] slower cooling near engine bay
+
+environment:
+  ambient_temp_init: 288.0  # [K] (~15C)
+  humidity_init: 50.0       # [%]
+  temp_step: 1.0            # [K] per +/- keypress
+  humidity_step: 5.0        # [%] per +/- keypress
+  temp_min: 223.0           # [K] (~-50C)
+  temp_max: 323.0           # [K] (~50C)
+  humidity_min: 0.0         # [%]
+  humidity_max: 100.0       # [%]
+
 monte_carlo:
   n_runs: 1000
   z_init_mean: 100.0
@@ -61,11 +92,15 @@ visualization:
     arrow_shaft_width: 0.01 # arrow shaft line width [NDC]
     fuel_bar_width: 0.04    # fuel gauge width [NDC]
     fuel_bar_height: 0.5    # fuel gauge height [NDC]
+    segment_label_offset_x: 0.03     # gap between rocket body edge and temp labels [NDC]
+    segment_label_text_height: 0.03  # smaller than main text_height [NDC]
+    env_panel_width: 0.3             # width reserved for env readout panel [NDC]
   colors:
     background: [0.05, 0.05, 0.1]
     ground: [0.4, 0.3, 0.2]
-    rocket: [0.9, 0.9, 0.9]
     flame: [1.0, 0.5, 0.0]
+    temp_cold: [0.1, 0.3, 1.0]   # blue -- coldest segment tint
+    temp_hot: [1.0, 0.15, 0.05]  # red -- hottest segment tint
     axis: [0.6, 0.6, 0.6]
     text: [0.9, 0.9, 0.9]
     weight_arrow: [1.0, 0.3, 0.3]

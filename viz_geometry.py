@@ -50,6 +50,72 @@ def rocket_body_vertices(center_x: float, center_y_ndc: float,
     ])
 
 
+def segmented_rocket_body_vertices(
+    center_x: float, center_y_ndc: float, width: float, height: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Generate NDC vertices for a 3-segment shuttle-style rocket body.
+
+    The rocket is split into ``forward``, ``mid``, and ``aft`` fuselage
+    segments stacked vertically. ``forward`` carries the triangular nose
+    (same construction as :func:`rocket_body_vertices`); ``mid`` and
+    ``aft`` are rectangular quads. Together the three segments tile the
+    same bounding box as ``rocket_body_vertices(center_x, center_y_ndc,
+    width, height)``.
+
+    Parameters
+    ----------
+    center_x:
+        X coordinate of the rocket center, in NDC.
+    center_y_ndc:
+        Y coordinate of the rocket center, in NDC.
+    width:
+        Total width of the rocket body, in NDC units.
+    height:
+        Total height of the rocket (body + nose), in NDC units.
+
+    Returns
+    -------
+    tuple[np.ndarray, np.ndarray, np.ndarray]
+        ``(forward, mid, aft)``. ``forward`` is shape ``(5, 2)``
+        (pentagon: nose tip + 4 corners). ``mid`` and ``aft`` are shape
+        ``(4, 2)`` rectangles. All ordered for ``GL_TRIANGLE_FAN`` or
+        ``GL_LINE_LOOP``.
+    """
+    half_w = width / 2.0
+    half_h = height / 2.0
+    nose_h = min(width, height)
+    shoulder_y = center_y_ndc + half_h - nose_h
+    body_bottom = center_y_ndc - half_h
+
+    seg_h = max(shoulder_y - body_bottom, 1e-6) / 3.0
+    mid_y = body_bottom + seg_h
+    forward_y = body_bottom + 2 * seg_h
+
+    aft = np.array([
+        [center_x - half_w, body_bottom],
+        [center_x + half_w, body_bottom],
+        [center_x + half_w, mid_y],
+        [center_x - half_w, mid_y],
+    ])
+
+    mid = np.array([
+        [center_x - half_w, mid_y],
+        [center_x + half_w, mid_y],
+        [center_x + half_w, forward_y],
+        [center_x - half_w, forward_y],
+    ])
+
+    forward = np.array([
+        [center_x, center_y_ndc + half_h],          # nose tip
+        [center_x + half_w, shoulder_y],            # right shoulder
+        [center_x + half_w, forward_y],             # bottom right
+        [center_x - half_w, forward_y],             # bottom left
+        [center_x - half_w, shoulder_y],            # left shoulder
+    ])
+
+    return forward, mid, aft
+
+
 def flame_vertices(center_x: float, base_y_ndc: float, thrust_frac: float,
                     width: float, max_height: float) -> np.ndarray:
     """Generate NDC vertices for an exhaust-flame triangle.
